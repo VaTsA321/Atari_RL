@@ -14,7 +14,7 @@ class DQN:
         with tf.variable_scope(name):
             self.target_Q = tf.placeholder(tf.float32, [None], name='target')
             self.inputs = tf.placeholder(tf.float32, [None, *state_size], name='inputs')
-            self.actions = tf.placeholder(tf.int32, [None, action_size], name='actions')
+            self.actions = tf.placeholder(tf.int32, [None], name='actions')
             one_hot_actions = tf.one_hot(self.actions, action_size)
             
             #Conv Layer 1
@@ -64,6 +64,9 @@ class DQN:
                                           name='output'
                                          )
 
+            #The greedy max Q value
+            self.Qmax = tf.reduce_max(self.output)
+
             # Q is our predicted Q value.
             self.Q = tf.reduce_sum(tf.multiply(self.output, one_hot_actions), axis=1)
 
@@ -96,9 +99,9 @@ class Agent:
         batch_size=32,
         train_frequency=4,
         discount_factor=0.99, 
-        explore_probability=1,
-        explore_probability_stop=0.1, 
-        decay_rate=1e-4, 
+        explore_start=1,
+        explore_stop=0.02, 
+        decay_rate=5e-5, 
         reward_stop=0, 
         learning_rate=0.00025 
     ):
@@ -106,28 +109,41 @@ class Agent:
         self.dqn = DQN(learning_rate, discount_factor, decay_rate, action_size, state_size, 'dqn')
         self.target_network = DQN(learning_rate, discount_factor, decay_rate, action_size, state_size, 'target_network')
         self.replay_buffer = Memory(1000000)
-        self.epsilon = explore_probability
+        self.epsilon = explore_start
+        self.explore_start = explore_start
+        self.explore_stop = explore_stop
+        self.decay_rate = decay_rate
+        self.action_size = action_size
+        self.batch_size = batch_size
+        self.gamma = discount_factor
+        self.step = 0
 
     def get_next_action(self, state, training, sess):
-        if training:
+        if training: 
+            #Update explore prob
+            self.step += 1
+            self.epsilon = self.explore_stop + (self.explore_start - self.explore_stop) * np.exp(-self.decay_rate * self.step)
+
             if np.random.random_sample() < self.epsilon:
                 #Take random action
-                return np_random.randint(0, action_size)
+                return np.random.randint(0, self.action_size)
             else:
                 #Take greedy action
-                Qs = sess.run(self.dqn, feed_dict={self.dqn.inputs: state.reshape((1, *state.shape))})
+                Qs = sess.run(self.dqn.output, feed_dict={self.dqn.inputs: state.reshape((1, *state.shape))})
                 action = np.argmax(Qs)
                 return action
         else:
             #Take greedy action
-            Qs = sess.run(self.dqn, feed_dict={self.dqn.inputs: state.reshape((1, *state.shape))})
+            Qs = sess.run(self.dqn.output, feed_dict={self.dqn.inputs: state.reshape((1, *state.shape))})
+            print('Qs = ', Qs)
             action = np.argmax(Qs)
+            print('action = ', action)
             return action
 
     def add_to_buffer(self, experience):
         self.replay_buffer.add(experience)
 
-    def copy_dqn2target():
+    def copy_dqn2target(self):
         # Get the parameters of our DQNNetwork
         from_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "dqn")
         
@@ -143,14 +159,14 @@ class Agent:
 
     def train(self, sess, summary_writer, write_op, step):
         # Sample mini-batch from memory
-        batch = self.replay_buffer.sample(batch_size)
+        batch = self.replay_buffer.sample(self.batch_size)
         states = np.array([each[0] for each in batch])
         actions = np.array([each[1] for each in batch])
         rewards = np.array([each[2] for each in batch])
         next_states = np.array([each[3] for each in batch])
         dones = np.array([each[4] for each in batch])
 
-        next_Qs = sess.run(self.target_network.output, feed_dict={sel.dqn.inputs: next_states})
+        next_Qs = sess.run(self.target_network.output, feed_dict={self.target_network.inputs: next_states})
         targets = []
 
         for i in range(len(batch)):

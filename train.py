@@ -7,7 +7,7 @@ from collections import deque
 
 def main():
     env = gym.make('Pong-v4')
-    env = wrap_deepmind(env)
+    env = wrap_deepmind(env, frame_stack=True, scale=True)
     action_size = env.action_space.n
     
     #High level hyperparameters
@@ -34,7 +34,8 @@ def main():
 
     #Setup summaries for tensorboard
     tf.summary.scalar("Loss", agent.dqn.loss)
-    tf.summary.tensor_summary("Q", agent.dqn.Q)
+    tf.summary.scalar("Qmax", agent.dqn.Qmax)
+    #tf.summary.tensor_summary("Q", agent.dqn.Q)
 
     #Reset the env
     state = env.reset()
@@ -44,10 +45,10 @@ def main():
         next_state, reward, done, _ = env.step(action)
         if done:
             next_state = np.zeros(state.shape)
-            agent.add_to_buffer([state, action, reward, next_state, done])
+            agent.add_to_buffer((state, action, reward, next_state, done))
             state = env.reset()
         else:
-            agent.add_to_buffer([state, action, reward, next_state, done])
+            agent.add_to_buffer((state, action, reward, next_state, done))
             state = next_state
 
     #Create agent
@@ -61,16 +62,16 @@ def main():
         decay_step = 0
         copy_steps = 0
         episode = 0
+        step = 0
         
 
         while avg_reward_10 < reward_stop:
             #Take action and add to mem
-            for step in range(max_steps_per_episode):
-
+            while step < max_steps_per_episode:
                 copy_steps += 1
                 total_steps += 1
 
-                action = agent.get_next_action(state, 1, sess)
+                action = agent.get_next_action(state=state, training=True, sess=sess)
                 next_state, reward, done, _ = env.step(action)
                 episode_rewards.append(reward)
                 if done:
@@ -81,26 +82,29 @@ def main():
                     print('{{"metric": "avg_reward_per_episode", "value": {}}}'.format(avg_reward_10))
                     print('{{"metric": "episode_reward", "value": {}}}'.format(total_episode_reward))
                     print('{{"metric": "steps_per_episde", "value": {}}}'.format(step))
+                    print('{{"metric": "explore_probability", "value": {}}}'.format(agent.epsilon))
+                    print('episode = ', episode)
                     next_state = np.zeros(state.shape)
-                    agent.add_to_buffer([state, action, reward, next_state, done])
+                    agent.add_to_buffer((state, action, reward, next_state, done))
                     state = env.reset()
                     step = max_steps_per_episode
+                    episode_rewards = []
                 else:
-                    agent.add_to_buffer([state, action, reward, next_state, done])
+                    agent.add_to_buffer((state, action, reward, next_state, done))
                     state = next_state
 
                 #Train with experience replay
-                if total_steps % 4 == 0:
+                if total_steps % train_freq == 0:
                     agent.train(sess, writer, write_op, total_steps)
 
                 if copy_steps > max_copy_steps:
                     # Update the parameters of our TargetNetwork with DQN_weights
-                    update_target = agent.copy_dqn2target
+                    update_target = agent.copy_dqn2target()
                     sess.run(update_target)
                     copy_steps = 0
                     print("Model updated")
 
-            
+                step += 1
 
             #Save model every 5 episodes
             if episode % 5 == 0:
@@ -109,6 +113,9 @@ def main():
 
             #Increment episode count
             episode += 1
+            step = 0
+
+            
 
 if __name__ == '__main__':
     main()

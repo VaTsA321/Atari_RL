@@ -4,7 +4,7 @@ from wrappers import wrap_deepmind
 from agent import Agent
 import time
 
-env = gym.make('Pong-v4')
+env = gym.make('Breakout-v0')
 env = wrap_deepmind(env, frame_stack=True, scale=True)
 action_size = env.action_space.n
 
@@ -22,7 +22,7 @@ with tf.Session() as sess:
     # Load the model
     saver.restore(sess, "./model.ckpt")
 
-    for episode in range(1):
+    for episode in range(10):
         total_rewards = 0
 
         state = env.reset()
@@ -39,7 +39,7 @@ with tf.Session() as sess:
             next_state, reward, done, _ = env.step(action)
             #print('obs = ', next_state)
             env.render()
-            time.sleep(0.02)
+            time.sleep(0.05)
 
             total_rewards += reward
 

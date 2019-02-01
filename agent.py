@@ -26,10 +26,10 @@ class DQN:
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
                                           name='conv1'
                                          )
-            self.relu1 = tf.nn.relu(self.conv1, name='relu1')
+            self.elu1 = tf.nn.elu(self.conv1, name='elu1')
 
             # Conv Layer 2
-            self.conv2 = tf.layers.conv2d(inputs=self.relu1,
+            self.conv2 = tf.layers.conv2d(inputs=self.elu1,
                                           filters=64,
                                           kernel_size=[4, 4],
                                           strides=(2, 2),
@@ -37,10 +37,10 @@ class DQN:
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
                                           name='conv2'
                                          )
-            self.relu2 = tf.nn.relu(self.conv2, name='relu2')
+            self.elu2 = tf.nn.elu(self.conv2, name='elu2')
 
             # Conv Layer 3
-            self.conv3 = tf.layers.conv2d(inputs=self.relu1,
+            self.conv3 = tf.layers.conv2d(inputs=self.elu1,
                                           filters=64,
                                           kernel_size=[4, 4],
                                           strides=(1, 1),
@@ -48,13 +48,13 @@ class DQN:
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
                                           name='conv3'
                                          )
-            self.relu3 = tf.nn.relu(self.conv2, name='relu3')
+            self.elu3 = tf.nn.elu(self.conv2, name='elu3')
 
             #FC Layer 1
-            self.flatten = tf.layers.flatten(self.relu3, name='flatten')
+            self.flatten = tf.layers.flatten(self.elu3, name='flatten')
             self.fc1 = tf.layers.dense(inputs=self.flatten,
                                        units=512,
-                                       activation=tf.nn.relu,
+                                       activation=tf.nn.elu,
                                        kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                        name="fc1")
             self.output = tf.layers.dense(inputs=self.fc1,
@@ -96,19 +96,19 @@ class Agent:
     def __init__(self, 
         action_size,  
         state_size=[84,84,4],
-        batch_size=32,
+        batch_size=32*4,
         train_frequency=4,
         discount_factor=0.99, 
         explore_start=1,
         explore_stop=0.02, 
-        decay_rate=5e-5, 
+        decay_rate=1e-5, 
         reward_stop=0, 
         learning_rate=0.00025 
     ):
         
         self.dqn = DQN(learning_rate, discount_factor, decay_rate, action_size, state_size, 'dqn')
         self.target_network = DQN(learning_rate, discount_factor, decay_rate, action_size, state_size, 'target_network')
-        self.replay_buffer = Memory(1000000)
+        self.replay_buffer = Memory(200000)
         self.epsilon = explore_start
         self.explore_start = explore_start
         self.explore_stop = explore_stop

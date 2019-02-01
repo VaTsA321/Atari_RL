@@ -6,22 +6,25 @@ from agent import Agent
 from collections import deque
 
 def main():
-    env = gym.make('Pong-v4')
+    env = gym.make('Breakout-v0')
     env = wrap_deepmind(env, frame_stack=True, scale=True)
     action_size = env.action_space.n
     
     #High level hyperparameters
-    pretrain_length=50000
-    reward_stop = 0
+    pretrain_length=10000
+    reward_stop = 10
     max_steps_per_episode = 10000
     train_freq = 4
     max_copy_steps = 10000
 
     #Reward tracking
     total_episode_reward = 0
-    avg_reward_10 = -21 #average reward over last 10 episodes
+    avg_reward_10 = 0 #average reward over last 10 episodes
     episode_rewards = []
     last_10_rewards = deque(maxlen=10)
+
+    #action tracking
+    #action_tensor = tf.Variable(0, name='action_tensor')
 
     # Reset the graph
     tf.reset_default_graph()
@@ -35,6 +38,7 @@ def main():
     #Setup summaries for tensorboard
     tf.summary.scalar("Loss", agent.dqn.loss)
     tf.summary.scalar("Qmax", agent.dqn.Qmax)
+    #tf.summary.scalar("action_tensor", action_tensor)
     #tf.summary.tensor_summary("Q", agent.dqn.Q)
 
     #Reset the env
@@ -72,6 +76,8 @@ def main():
                 total_steps += 1
 
                 action = agent.get_next_action(state=state, training=True, sess=sess)
+                #action_op = action_tensor.assign(action)
+                #sess.run(action_op)
                 next_state, reward, done, _ = env.step(action)
                 episode_rewards.append(reward)
                 if done:
